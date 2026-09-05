@@ -4,4 +4,6 @@ WORKDIR /app
 
 RUN pip install pyzmq
 
-CMD ["python", "main.py"]
+COPY ./broker.py .
+COPY ./servidor.py .
+COPY ./cliente.py .

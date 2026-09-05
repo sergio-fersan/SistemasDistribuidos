@@ -1,38 +1,78 @@
 import zmq
+import json
+
 
 context = zmq.Context()
-poller = zmq.Poller()
 
-client_socket = context.socket(zmq.ROUTER)
-client_socket.bind("tcp://*:5555")
-poller.register(client_socket, zmq.POLLIN)
-client_count = 0
+socket = context.socket(zmq.REQ)
 
-server_socket = context.socket(zmq.DEALER)
-server_socket.bind("tcp://*:5556")
-poller.register(server_socket, zmq.POLLIN)
-server_count = 0
+socket.connect("tcp://broker:5555")
 
+#Função enviar_requisicao:
+def enviar_requisicao(dados):
+    mensagem = json.dumps(dados).encode()
+
+    socket.send(mensagem)
+
+    resposta = socket.recv()
+
+    return json.loads(resposta.decode())
+
+#Menu geral, das funções:
 while True:
-    socks = dict(poller.poll())
+    print("\nTask manager:")
+    print("1. Adicionar tarefa")
+    print("2. Remover tarefa")
+    print("3. Listar tarefas")
+    print("0. Sair")
 
-    if socks.get(client_socket) == zmq.POLLIN:
-        client_count += 1
-        message = client_socket.recv()
-        more = client_socket.getsockopt(zmq.RCVMORE)
-        if more:
-            server_socket.send(message, zmq.SNDMORE)
+    opcao = input("Escolha uma opção: ")
+
+    if opcao == "1":
+        titulo = input("Digite o titulo da tarefa: ")
+
+        dados = {
+            "operacao": "adicionar",
+            "titulo": titulo
+        }
+
+        resposta = enviar_requisicao(dados)
+
+        print(resposta["mensagem"])
+        print(f"Tarefa: {resposta['tarefa']}")
+
+    elif opcao == "2":
+        id_tarefa = int(input("Digite o ID da tarefa: "))
+
+        dados = {
+            "operacao": "remover",
+            "id": id_tarefa
+        }
+
+        resposta = enviar_requisicao(dados)
+
+        print(resposta["mensagem"])
+
+    elif opcao == "3":
+        dados = {
+            "operacao": "listar"
+        }
+
+        resposta = enviar_requisicao(dados)
+
+        print("\nTarefas:")
+
+        if len(resposta["tarefas"]) == 0:
+            print("Lista de tarefas vazia")
         else:
-            server_socket.send(message)
-        print(f"Client messages: {client_count}", flush=True)
+            for tarefa in resposta["tarefas"]:
+                print(
+                    f"{tarefa['id']} - {tarefa['titulo']}"
+                )
 
-    if socks.get(server_socket) == zmq.POLLIN:
-        server_count += 1
-        message = server_socket.recv()
-        more = server_socket.getsockopt(zmq.RCVMORE)
-        if more:
-            client_socket.send(message, zmq.SNDMORE)
-        else:
-            client_socket.send(message)
-        print(f"Server messages: {server_count}", flush=True)
+    elif opcao == "0":
+        print("Desligando....")
+        break
 
+    else:
+        print("Opção invalida.")
